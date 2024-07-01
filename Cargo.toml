@@ -11,7 +11,7 @@ tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread"] }
 prost = "0.12.6"
 num-bigint = "0.4.3"
 rand = "0.8.5"
-num = "0.4.0"
+num = "0.4.3"
 hex = "0.4.3"
 
 [build-dependencies]
