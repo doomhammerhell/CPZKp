@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 tonic = "0.12.2"
 tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread"] }
-prost = "0.13.1"
+prost = "0.13.3"
 num-bigint = "0.4.3"
 rand = "0.8.5"
 num = "0.4.3"
