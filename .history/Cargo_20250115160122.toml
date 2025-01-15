@@ -10,7 +10,6 @@ repository = "https://github.com/yourusername/zkp_auth"
 version = "0.1.0"
 
 [dependencies]
-hex = "0.4"
 log = {version = "0.4", features = ["std"]}
 num = "0.4"
 num-bigint = {version = "0.4", features = ["rand"]}

@@ -19,7 +19,7 @@
 //! let group = Group::Scalar;
 //!
 //! // Get the system parameters
-//! let (p, q, g, h) = get_constants(&group).unwrap();
+//! let (p, q, g, h) = get_constants(&group);
 //!
 //! // Generate a random secret
 //! let x_secret = BigUint::from(1234u32);
@@ -268,12 +268,11 @@ pub fn exponentiates_points_elliptic_curve(
 /// * `q` - the order of the cyclic group
 pub fn solve_zk_challenge_s(x_secret: &BigUint, k: &BigUint, c: &BigUint, q: &BigUint) -> BigUint {
     let cx = c * x_secret;
-    let result = if *k >= cx {
+    if *k > cx {
         (k - cx).modpow(&BigUint::one(), q)
     } else {
         q - (cx - k).modpow(&BigUint::one(), q)
-    };
-    result % q
+    }
 }
 
 pub fn verify(
@@ -484,7 +483,7 @@ mod tests {
             let q = BigUint::from(q);
 
             let s = solve_zk_challenge_s(&x, &k, &c, &q);
-            prop_assert!(s < q, "s = {}, q = {}", s, q);
+            prop_assert!(s < q);
         }
 
         #[test]
@@ -503,8 +502,7 @@ mod tests {
             let (g_exp, h_exp) = exponentiates_points(&exp, &g, &h, &p).unwrap();
 
             if let (Point::Scalar(g_val), Point::Scalar(h_val)) = (g_exp, h_exp) {
-                let g_val_clone = g_val.clone();
-                prop_assert_eq!(g_val_clone, h_val);
+                prop_assert_eq!(g_val.clone(), h_val);
                 prop_assert!(g_val < p);
             }
         }

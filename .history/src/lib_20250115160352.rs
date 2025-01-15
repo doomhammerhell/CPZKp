@@ -19,7 +19,7 @@
 //! let group = Group::Scalar;
 //!
 //! // Get the system parameters
-//! let (p, q, g, h) = get_constants(&group).unwrap();
+//! let (p, q, g, h) = get_constants(&group);
 //!
 //! // Generate a random secret
 //! let x_secret = BigUint::from(1234u32);
@@ -34,7 +34,7 @@ mod secp256k1;
 
 use num::traits::One;
 use num_bigint::BigUint;
-use rand::distributions::Alphanumeric;
+use rand::{distributions::Alphanumeric, Rng};
 use secp256k1::Secp256k1Point;
 
 /// The possible kind of errors returned by this library.
@@ -268,12 +268,11 @@ pub fn exponentiates_points_elliptic_curve(
 /// * `q` - the order of the cyclic group
 pub fn solve_zk_challenge_s(x_secret: &BigUint, k: &BigUint, c: &BigUint, q: &BigUint) -> BigUint {
     let cx = c * x_secret;
-    let result = if *k >= cx {
+    if *k > cx {
         (k - cx).modpow(&BigUint::one(), q)
     } else {
         q - (cx - k).modpow(&BigUint::one(), q)
-    };
-    result % q
+    }
 }
 
 pub fn verify(
@@ -420,6 +419,7 @@ pub fn get_random_string(n: usize) -> Result<String, Error> {
 
 #[cfg(test)]
 mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
     use proptest::prelude::*;
 
@@ -462,6 +462,332 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_exponentiates_points_scalar() {
+        let p = BigUint::from(10009u32);
+        let g = BigUint::from(3u32);
+        let h = BigUint::from(2892u32);
+
+        let secret = BigUint::from(300u32);
+
+        let (y1, y2) = exponentiates_points_scalar(&secret, &g, &h, &p);
+
+        assert_eq!(y1, Point::Scalar(BigUint::from(6419u32)));
+        assert_eq!(y2, Point::Scalar(BigUint::from(4984u32)));
+    }
+
+    #[test]
+    fn test_solve_zk_challenge_s() {
+        // test positive k - cx
+        let x = BigUint::from(3u32);
+        let c = BigUint::from(3u32);
+        let k = BigUint::from(10u32);
+        let q = BigUint::from(10u32);
+
+        // s = 10 - 3 * 3 mod 10 = 1
+        assert_eq!(solve_zk_challenge_s(&x, &k, &c, &q), BigUint::one());
+
+        // test negative k - cx
+        let x = BigUint::from(4u32);
+        let c = BigUint::from(3u32);
+        let k = BigUint::from(10u32);
+        let q = BigUint::from(10u32);
+
+        // s = 10 - 3 * 4 mod 10 = 8
+        assert_eq!(solve_zk_challenge_s(&x, &k, &c, &q), BigUint::from(8u32));
+    }
+
+    #[test]
+    fn test_verify_scalar_success_toy_example_1() {
+        let p = BigUint::from(10009u32);
+        let q = (&p - BigUint::one()) / BigUint::from(2u32);
+
+        let x = BigUint::from(300u32);
+        let g = Point::Scalar(BigUint::from(3u32));
+        let h = Point::Scalar(BigUint::from(2892u32));
+
+        let (y1, y2) = exponentiates_points(&x, &g, &h, &p).unwrap();
+
+        let k = BigUint::from(10u32);
+        let (r1, r2) = exponentiates_points(&k, &g, &h, &p).unwrap();
+
+        let c = BigUint::from(894u32);
+
+        let s = solve_zk_challenge_s(&x, &k, &c, &q);
+
+        let verification = verify(&r1, &r2, &y1, &y2, &g, &h, &c, &s, &p).unwrap();
+        assert!(verification)
+    }
+
+    #[test]
+    fn test_verify_scalar_success_toy_example_2() {
+        let p = BigUint::from(23u32);
+        let q = BigUint::from(11u32);
+
+        let x = BigUint::from(6u32);
+        let g = Point::Scalar(BigUint::from(4u32));
+        let h = Point::Scalar(BigUint::from(9u32));
+
+        let (y1, y2) = exponentiates_points(&x, &g, &h, &p).unwrap();
+
+        assert_eq!(y1, Point::Scalar(BigUint::from(2u32)));
+        assert_eq!(y2, Point::Scalar(BigUint::from(3u32)));
+
+        let k = BigUint::from(7u32);
+        let (r1, r2) = exponentiates_points(&k, &g, &h, &p).unwrap();
+
+        assert_eq!(r1, Point::Scalar(BigUint::from(8u32)));
+        assert_eq!(r2, Point::Scalar(BigUint::from(4u32)));
+
+        let c = BigUint::from(4u32);
+
+        let s = solve_zk_challenge_s(&x, &k, &c, &q);
+        assert_eq!(s, BigUint::from(5u32));
+
+        let verification = verify(&r1, &r2, &y1, &y2, &g, &h, &c, &s, &p).unwrap();
+        assert!(verification)
+    }
+
+    #[test]
+    fn test_verify_scalar_failure_toy_example_1() {
+        let p = BigUint::from(23u32);
+        let q = BigUint::from(11u32);
+
+        let x = BigUint::from(6u32);
+
+        let g = Point::Scalar(BigUint::from(4u32));
+        let h = Point::Scalar(BigUint::from(9u32));
+
+        let (y1, y2) = exponentiates_points(&x, &g, &h, &p).unwrap();
+        assert_eq!(y1, Point::Scalar(BigUint::from(2u32)));
+        assert_eq!(y2, Point::Scalar(BigUint::from(3u32)));
+
+        let k = BigUint::from(7u32);
+        let (r1, r2) = exponentiates_points(&k, &g, &h, &p).unwrap();
+
+        assert_eq!(r1, Point::Scalar(BigUint::from(8u32)));
+        assert_eq!(r2, Point::Scalar(BigUint::from(4u32)));
+
+        let c = BigUint::from(4u32);
+
+        let mut s = solve_zk_challenge_s(&x, &k, &c, &q);
+
+        // we compute `s` slightly bad
+        s = s - BigUint::one();
+
+        let verification = verify(&r1, &r2, &y1, &y2, &g, &h, &c, &s, &p).unwrap();
+        assert!(!verification)
+    }
+
+    #[test]
+    fn test_verify_elliptic_curve_success_example_1() {
+        let p = Secp256k1Point::prime();
+        let q = Secp256k1Point::n();
+
+        let x = BigUint::from(300u32);
+        let g = Secp256k1Point::generator();
+        let h = g.clone().scale(BigUint::from(13u32));
+
+        let g = Point::from_secp256k1(&g).unwrap();
+        let h = Point::from_secp256k1(&h).unwrap();
+        let (y1, y2) = exponentiates_points(&x, &g, &h, &p).unwrap();
+
+        let k = BigUint::from(10u32);
+        let (r1, r2) = exponentiates_points(&k, &g, &h, &p).unwrap();
+
+        let c = BigUint::from(894u32);
+
+        let s = solve_zk_challenge_s(&x, &k, &c, &q);
+
+        let verification = verify(&r1, &r2, &y1, &y2, &g, &h, &c, &s, &p).unwrap();
+        assert!(verification)
+    }
+
+    #[test]
+    fn test_verify_elliptic_curve_failure_example_1() {
+        let p = Secp256k1Point::prime();
+        let q = Secp256k1Point::n();
+
+        let x = BigUint::from(300u32);
+        let g = Secp256k1Point::generator();
+        let h = g.clone().scale(BigUint::from(13u32));
+
+        let g = Point::from_secp256k1(&g).unwrap();
+        let h = Point::from_secp256k1(&h).unwrap();
+        let (y1, y2) = exponentiates_points(&x, &g, &h, &p).unwrap();
+
+        let k = BigUint::from(10u32);
+        let (r1, r2) = exponentiates_points(&k, &g, &h, &p).unwrap();
+
+        let c = BigUint::from(894u32);
+
+        let s = solve_zk_challenge_s(&x, &k, &c, &q) + BigUint::one();
+
+        let verification = verify(&r1, &r2, &y1, &y2, &g, &h, &c, &s, &p).unwrap();
+        assert!(!verification)
+    }
+
+    #[test]
+    fn test_serialize() {
+        let p = Point::Scalar(BigUint::from(65256u32));
+
+        assert_eq!(p.serialize(), vec![0xfe, 0xe8]);
+
+        let p = Point::ECPoint(BigUint::from(65256u32), BigUint::from(8475u32));
+
+        assert_eq!(p.serialize(), vec![0xfe, 0xe8, 0x21, 0x1b]);
+
+        // one array is longer than the other
+        let p = Point::ECPoint(BigUint::from(65256u32), BigUint::from(83957234u32));
+
+        assert_eq!(
+            p.serialize(),
+            vec![0x00, 0x00, 0xfe, 0xe8, 0x05, 0x01, 0x15, 0xf2]
+        );
+
+        // the other way around
+        let p = Point::ECPoint(BigUint::from(83957234u32), BigUint::from(65256u32));
+
+        assert_eq!(
+            p.serialize(),
+            vec![0x05, 0x01, 0x15, 0xf2, 0x00, 0x00, 0xfe, 0xe8]
+        );
+    }
+
+    #[test]
+    fn test_deserialize() {
+        let p = Point::deserialize(vec![0xfe, 0xe8], &Group::Scalar);
+
+        assert_eq!(p, Point::Scalar(BigUint::from(65256u32)));
+
+        let p = Point::deserialize(vec![0xfe, 0xe8, 0x21, 0x1b], &Group::EllipticCurve);
+
+        assert_eq!(
+            p,
+            Point::ECPoint(BigUint::from(65256u32), BigUint::from(8475u32))
+        );
+
+        // one array is longer than the other
+        let p = Point::deserialize(
+            vec![0x00, 0x00, 0xfe, 0xe8, 0x05, 0x01, 0x15, 0xf2],
+            &Group::EllipticCurve,
+        );
+
+        assert_eq!(
+            p,
+            Point::ECPoint(BigUint::from(65256u32), BigUint::from(83957234u32))
+        );
+
+        // the other way around
+        let p = Point::deserialize(
+            vec![0x05, 0x01, 0x15, 0xf2, 0x00, 0x00, 0xfe, 0xe8],
+            &Group::EllipticCurve,
+        );
+
+        assert_eq!(
+            p,
+            Point::ECPoint(BigUint::from(83957234u32), BigUint::from(65256u32))
+        );
+    }
+
+    #[test]
+    fn test_point_operations_scalar() {
+        let p = BigUint::from(10009u32);
+        let g = Point::Scalar(BigUint::from(3u32));
+        let h = Point::Scalar(BigUint::from(2892u32));
+        let exp = BigUint::from(123u32);
+
+        let (g_exp, h_exp) = exponentiates_points(&exp, &g, &h, &p).unwrap();
+
+        assert!(matches!(g_exp, Point::Scalar(_)));
+        assert!(matches!(h_exp, Point::Scalar(_)));
+
+        if let (Point::Scalar(g_val), Point::Scalar(h_val)) = (g_exp, h_exp) {
+            assert_eq!(g_val, BigUint::from(2046u32));
+            assert_eq!(h_val, BigUint::from(4077u32));
+        }
+    }
+
+    #[test]
+    fn test_point_serialization_edge_cases() {
+        // Test serialization with different length coordinates
+        let small_x = BigUint::from(123u32);
+        let large_y = BigUint::from_bytes_be(&[255; 32]);
+        let point = Point::ECPoint(small_x.clone(), large_y.clone());
+
+        let serialized = point.serialize();
+        let deserialized = Point::deserialize(serialized, &Group::EllipticCurve);
+
+        if let Point::ECPoint(x, y) = deserialized {
+            assert_eq!(x, small_x);
+            assert_eq!(y, large_y);
+        } else {
+            panic!("Deserialization failed");
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "The length of the serialized object should be even")]
+    fn test_deserialize_invalid_length() {
+        let invalid_data = vec![1, 2, 3]; // Odd length
+        Point::deserialize_into_ecpoint(invalid_data);
+    }
+
+    #[test]
+    fn test_point_type_mismatch() {
+        let p = BigUint::from(10009u32);
+        let g = Point::Scalar(BigUint::from(3u32));
+        let h = Point::ECPoint(BigUint::from(2892u32), BigUint::from(1234u32));
+        let exp = BigUint::from(123u32);
+
+        let result = exponentiates_points(&exp, &g, &h, &p);
+        assert!(matches!(result, Err(Error::InvalidArguments)));
+    }
+
+    #[cfg(feature = "bench")]
+    mod benchmarks {
+        use super::*;
+        use test::Bencher;
+
+        #[bench]
+        fn bench_scalar_exponentiation(b: &mut Bencher) {
+            let p = BigUint::from(10009u32);
+            let g = Point::Scalar(BigUint::from(3u32));
+            let h = Point::Scalar(BigUint::from(2892u32));
+            let exp = BigUint::from(123u32);
+
+            b.iter(|| {
+                exponentiates_points(&exp, &g, &h, &p).unwrap();
+            });
+        }
+
+        #[bench]
+        fn bench_ec_exponentiation(b: &mut Bencher) {
+            let p = Secp256k1Point::prime();
+            let g = Secp256k1Point::generator();
+            let h = g.clone().scale(BigUint::from(13u32));
+            let g = Point::from_secp256k1(&g).unwrap();
+            let h = Point::from_secp256k1(&h).unwrap();
+            let exp = BigUint::from(300u32);
+
+            b.iter(|| {
+                exponentiates_points(&exp, &g, &h, &p).unwrap();
+            });
+        }
+
+        #[bench]
+        fn bench_point_serialization(b: &mut Bencher) {
+            let point = Point::ECPoint(
+                BigUint::from_bytes_be(&[255; 32]),
+                BigUint::from_bytes_be(&[255; 32]),
+            );
+
+            b.iter(|| {
+                point.serialize();
+            });
+        }
+    }
+
     proptest! {
         #[test]
         fn test_serialization_roundtrip_scalar(x in 1u32..1000u32) {
@@ -484,7 +810,7 @@ mod tests {
             let q = BigUint::from(q);
 
             let s = solve_zk_challenge_s(&x, &k, &c, &q);
-            prop_assert!(s < q, "s = {}, q = {}", s, q);
+            prop_assert!(s < q);
         }
 
         #[test]
@@ -503,8 +829,7 @@ mod tests {
             let (g_exp, h_exp) = exponentiates_points(&exp, &g, &h, &p).unwrap();
 
             if let (Point::Scalar(g_val), Point::Scalar(h_val)) = (g_exp, h_exp) {
-                let g_val_clone = g_val.clone();
-                prop_assert_eq!(g_val_clone, h_val);
+                prop_assert_eq!(g_val, h_val);
                 prop_assert!(g_val < p);
             }
         }

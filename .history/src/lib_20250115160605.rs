@@ -19,7 +19,7 @@
 //! let group = Group::Scalar;
 //!
 //! // Get the system parameters
-//! let (p, q, g, h) = get_constants(&group).unwrap();
+//! let (p, q, g, h) = get_constants(&group);
 //!
 //! // Generate a random secret
 //! let x_secret = BigUint::from(1234u32);
