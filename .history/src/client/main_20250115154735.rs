@@ -1,7 +1,7 @@
-use num::traits::One;
 use num::BigUint;
-use std::env;
+use num::traits::One;
 use std::io::{stdin, stdout, Write};
+use std::env;
 
 pub mod zkp_auth {
     include!("../zkp_auth.rs");
@@ -11,7 +11,7 @@ use zkp_auth::auth_client::AuthClient;
 use zkp_auth::{AuthenticationAnswerRequest, AuthenticationChallengeRequest, RegisterRequest};
 
 use chaum_pedersen_zkp::{
-    exponentiates_points, get_constants, get_random_number, parse_group_from_command_line,
+    parse_group_from_command_line, get_constants, get_random_number, exponentiates_points,
     solve_zk_challenge_s,
 };
 

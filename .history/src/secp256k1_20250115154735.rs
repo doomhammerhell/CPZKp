@@ -21,7 +21,7 @@ impl FiniteField {
         FiniteField { number, prime }
     }
 
-    fn check_equal_order_and_panic(&self, rhs: &FiniteField) {
+    fn check_equal_order_and_panic(self: &Self, rhs: &FiniteField) {
         if self.prime != rhs.prime {
             panic!(
                 "Finite fields elements have different order lhs: {}, rhs: {}",
@@ -200,44 +200,6 @@ impl Point {
         }
         return result;
     }
-
-    fn is_on_curve(&self) -> bool {
-        match self {
-            Point::Zero => true,
-            Point::Coor { x, y, a, b } => {
-                y.clone().pow(&BigInt::from(2u32))
-                    == x.clone().pow(&BigInt::from(3u32)) + a.clone() * x.clone() + b.clone()
-            }
-        }
-    }
-
-    fn double(&self) -> Point {
-        let mut result = Point::Zero;
-        let mut temp = self.clone();
-
-        while scalar > BigUint::zero() {
-            if &scalar % BigUint::from(2u32) == BigUint::one() {
-                result = result + &temp;
-            }
-            temp = temp.double();
-            scalar >>= 1;
-        }
-        result
-    }
-
-    pub fn scale(&self, mut scalar: BigUint) -> Point {
-        let mut result = Point::Zero;
-        let mut temp = self.clone();
-
-        while scalar > BigUint::zero() {
-            if &scalar % BigUint::from(2u32) == BigUint::one() {
-                result = result + &temp;
-            }
-            temp = temp.double();
-            scalar >>= 1;
-        }
-        result
-    }
 }
 
 impl Add for Point {
@@ -340,10 +302,16 @@ impl Secp256k1Point {
         Self::n() - BigUint::from(2u32)
     }
 
-    pub fn from_bigint(x: BigUint, y: BigUint) -> Point {
-        let prime = Self::prime();
-        let x = FiniteField::from_bytes_be(x, &prime);
-        let y = FiniteField::from_bytes_be(y, &prime);
+    pub fn from_bigint(x: &BigUint, y: &BigUint) -> Point {
+        Self::from_bytes_be(&x.to_bytes_be(), &y.to_bytes_be())
+    }
+
+    pub fn from_bytes_be(x: &[u8], y: &[u8]) -> Point {
+        let prime = hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F")
+            .unwrap();
+
+        let x = FiniteField::from_bytes_be(&x, &prime);
+        let y = FiniteField::from_bytes_be(&y, &prime);
 
         let point = Point::Coor {
             a: Self::a(),
@@ -357,20 +325,6 @@ impl Secp256k1Point {
         }
 
         point
-    }
-}
-
-impl fmt::Display for Point {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Point::Zero => write!(f, "Point::Zero"),
-            Point::Coor { x, y, .. } => write!(
-                f,
-                "Point::Coor(x:{}, y:{})",
-                hex::encode(x.number.to_bytes_be()),
-                hex::encode(y.number.to_bytes_be())
-            ),
-        }
     }
 }
 
