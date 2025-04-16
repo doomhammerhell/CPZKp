@@ -1,18 +1,19 @@
-//! Zero-Knowledge Proof Authentication Library
+//! # CPZKp - Chaum-Pedersen Zero-Knowledge Proofs
 //!
-//! This library implements a zero-knowledge proof authentication system that supports
-//! both scalar (multiplicative group) and elliptic curve groups. It provides functionality
-//! for both the prover and verifier in the ZKP protocol.
+//! This library implements Chaum-Pedersen Zero-Knowledge Proofs for both scalar groups and elliptic curves.
+//! It provides a secure way to prove knowledge of a secret without revealing it.
 //!
-//! # Features
+//! ## Features
+//!
 //! - Support for scalar (multiplicative) group operations
 //! - Support for secp256k1 elliptic curve operations
+//! - Support for Curve25519 (optional feature)
 //! - Serialization/deserialization of group elements
 //! - Command-line argument parsing for group selection
 //!
-//! # Example
+//! ## Example
 //! ```rust
-//! use zkp_auth::{Group, Point, get_constants, solve_zk_challenge_s};
+//! use cpzkp::{Group, Point, get_constants, solve_zk_challenge_s};
 //! use num_bigint::BigUint;
 //!
 //! // Select the group type
@@ -30,12 +31,21 @@
 //! let s = solve_zk_challenge_s(&x_secret, &k, &c, &q);
 //! ```
 
-mod secp256k1;
+#![deny(warnings)]
 
-use num::traits::One;
-use num_bigint::BigUint;
-use rand::distributions::Alphanumeric;
-use secp256k1::Secp256k1Point;
+mod scalar;
+mod ecc;
+#[cfg(feature = "curve25519")]
+mod curve25519;
+mod types;
+mod traits;
+
+pub use scalar::*;
+pub use ecc::*;
+#[cfg(feature = "curve25519")]
+pub use curve25519::*;
+pub use types::*;
+pub use traits::*;
 
 /// The possible kind of errors returned by this library.
 #[derive(Debug)]
@@ -68,11 +78,14 @@ impl std::error::Error for Error {}
 /// The protocol can operate in either:
 /// - A scalar (multiplicative) group of integers modulo a prime
 /// - The secp256k1 elliptic curve group
+/// - The Curve25519 elliptic curve group (if feature enabled)
 #[derive(Debug, Default)]
 pub enum Group {
     #[default]
     Scalar,
     EllipticCurve,
+    #[cfg(feature = "curve25519")]
+    Curve25519,
 }
 
 /// Structure to represent elements in the cyclic group.
@@ -109,6 +122,8 @@ pub fn get_constants(group: &Group) -> Result<(BigUint, BigUint, Point, Point), 
     match group {
         Group::Scalar => Ok(get_constants_scalar()),
         Group::EllipticCurve => get_constants_elliptic_curve(),
+        #[cfg(feature = "curve25519")]
+        Group::Curve25519 => get_constants_curve25519(),
     }
 }
 
@@ -130,6 +145,11 @@ pub fn get_constants_elliptic_curve() -> Result<(BigUint, BigUint, Point, Point)
         Point::from_secp256k1(&g)?,
         Point::from_secp256k1(&h)?,
     ))
+}
+
+pub fn get_constants_curve25519() -> Result<(BigUint, BigUint, Point, Point), Error> {
+    // Implementation needed for Curve25519
+    Err(Error::InvalidGroupType)
 }
 
 impl Point {
@@ -159,6 +179,8 @@ impl Point {
         match group {
             Group::Scalar => Ok(Point::deserialize_into_scalar(v)),
             Group::EllipticCurve => Point::deserialize_into_ecpoint(v),
+            #[cfg(feature = "curve25519")]
+            Group::Curve25519 => Point::deserialize_into_curve25519(v),
         }
     }
 
@@ -191,6 +213,11 @@ impl Point {
                 "Cannot convert Zero point".to_string(),
             )),
         }
+    }
+
+    pub fn deserialize_into_curve25519(v: Vec<u8>) -> Result<Point, Error> {
+        // Implementation needed for Curve25519
+        Err(Error::InvalidSerialization("Curve25519 deserialization not implemented".to_string()))
     }
 }
 
